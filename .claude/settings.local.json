@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__filesystem__list_directory",
+      "WebSearch",
+      "mcp__filesystem__directory_tree",
+      "mcp__filesystem__search_files",
+      "mcp__xshell__check_bridge",
+      "mcp__xshell__get_session_info",
+      "mcp__xshell__get_screen",
+      "mcp__xshell__execute_command"
+    ]
+  }
+}
