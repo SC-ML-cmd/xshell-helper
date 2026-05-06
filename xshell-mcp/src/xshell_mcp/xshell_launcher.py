@@ -30,12 +30,29 @@ def find_xshell(config: XshellConfig) -> str:
 
 
 def _find_session(config: XshellConfig) -> str:
-    """查找 Xshell 会话文件"""
-    # 优先使用配置中的路径
+    """查找 Xshell 会话文件（按优先级）"""
+    # 1) 优先使用配置中指定的路径
     if config.session_path and Path(config.session_path).exists():
         return config.session_path
 
-    # 尝试从默认会话目录找最近使用的 .xsh 文件
+    # 2) 从 Xshell 最近日志中解析最后加载的会话
+    applog_dir = Path.home() / "Documents" / "NetSarang Computer" / "8" / "Xshell" / "applog"
+    if applog_dir.is_dir():
+        log_files = sorted(applog_dir.glob("XshellCore_*.log"), key=lambda f: f.stat().st_mtime, reverse=True)
+        for log in log_files[:3]:
+            try:
+                content = log.read_text(encoding="utf-16-le", errors="ignore")
+                for line in content.split("\n"):
+                    if "Load profile(Session)" in line and ".xsh" in line:
+                        start = line.find("C:\\")
+                        if start >= 0:
+                            path_str = line[start:].strip()
+                            if Path(path_str).exists():
+                                return path_str
+            except Exception:
+                pass
+
+    # 3) 回退：从会话目录找最近修改的 .xsh 文件
     sessions_dir = Path.home() / "Documents" / "NetSarang Computer" / "8" / "Xshell" / "Sessions"
     if sessions_dir.is_dir():
         xsh_files = sorted(sessions_dir.glob("*.xsh"), key=lambda f: f.stat().st_mtime, reverse=True)
@@ -54,6 +71,13 @@ def launch_xshell(config: XshellConfig) -> bool:
     bridge_script = config.bridge_script_path
     if not Path(bridge_script).exists():
         raise FileNotFoundError("找不到 Bridge 脚本: {}".format(bridge_script))
+
+    # 杀掉旧的 XshellCore 进程，避免新旧实例冲突
+    try:
+        subprocess.run(["taskkill", "/f", "/im", "XshellCore.exe"], capture_output=True, timeout=10)
+        time.sleep(1)
+    except Exception:
+        pass
 
     # 启动 Xshell：前面放会话文件（自动连接 SSH），-script 加载 Bridge
     cmd = [xshell_exe]

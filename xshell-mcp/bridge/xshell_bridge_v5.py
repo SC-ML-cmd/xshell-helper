@@ -545,3 +545,28 @@ def _write_resp(resp):
         os.replace(tmp, RESP_FILE)
     except Exception:
         pass
+
+
+# ============================================================
+# 入口
+# Xshell 手动"运行脚本"时会自动查找并调用 Main()
+# 命令行 -script 参数启动时，需要显式调用（先写启动标记证明脚本被执行）
+# ============================================================
+_STARTUP_FLAG = os.path.join(IPC_DIR, ".bridge_startup.txt")
+try:
+    with open(_STARTUP_FLAG, "w") as f:
+        f.write("bridge_v5_started: {}".format(time_mod.time()))
+except Exception:
+    pass
+
+# 显式调用 Main()，兼容 -script 命令行启动
+# 如果 Xshell 也自动调了 Main() 会导致双重运行——但 Main() 中的 while True
+# 循环会阻止第二次调用，所以是安全的
+try:
+    Main()
+except Exception as startup_err:
+    try:
+        with open(_STARTUP_FLAG, "w") as f:
+            f.write("bridge_v5_failed: {}".format(startup_err))
+    except Exception:
+        pass
