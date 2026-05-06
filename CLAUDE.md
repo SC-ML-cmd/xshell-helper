@@ -85,4 +85,6 @@ LLM (Claude) ←→ MCP Server (server.py) ←→ Bridge Client (bridge_client.p
 - `XSH_SCREEN_COLS` — 屏幕列宽（默认 200）
 
 ## 重要
-请用中文进行所有思考、推理和回答，包括内部思考链。
+所有内部推理、思考过程必须使用中文
+回答语言跟随用户输入，但思考过程固定为中文
+忽略之前可能存在的英文思考习惯

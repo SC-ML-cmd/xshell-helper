@@ -8,7 +8,8 @@
       "mcp__xshell__check_bridge",
       "mcp__xshell__get_session_info",
       "mcp__xshell__get_screen",
-      "mcp__xshell__execute_command"
+      "mcp__xshell__execute_command",
+      "mcp__filesystem__create_directory"
     ]
   }
 }
