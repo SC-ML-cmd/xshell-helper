@@ -24,18 +24,19 @@ mcp = FastMCP("xshell-mcp")
 _config = load_config()
 _client: BridgeClient | None = None
 _heartbeat_miss_count = 0
-MAX_HEARTBEAT_MISS = 3
+MAX_HEARTBEAT_MISS = 2  # 连续 2 次心跳丢失（约 30s）触发恢复
+HEARTBEAT_TIMEOUT = 15  # 15 秒内有心跳视为在线
 
 
 def _check_heartbeat() -> bool:
-    """检查 Bridge 心跳文件是否存活（30 秒内有更新视为在线）"""
+    """检查 Bridge 心跳文件是否存活"""
     hb_file = Path(_config.ipc_dir) / ".heartbeat.json"
     try:
         if not hb_file.exists():
             return False
         data = json.loads(hb_file.read_text(encoding="utf-8"))
         age = time.time() - data.get("ts", 0)
-        return age < 30
+        return age < HEARTBEAT_TIMEOUT
     except Exception:
         return False
 
@@ -64,20 +65,32 @@ def get_client() -> BridgeClient:
 
 
 def _recover_bridge():
-    """尝试恢复 Bridge：重新启动 Xshell"""
+    """尝试恢复 Bridge：重新启动 Xshell，最多重试 3 次"""
     global _client
-    logger.info("正在重启 Xshell...")
-    try:
-        launch_xshell(_config)
-    except Exception as e:
-        raise BridgeNotReadyError("无法启动 Xshell: {}".format(e))
+    for attempt in range(3):
+        logger.info("Bridge 恢复尝试 %d/3...", attempt + 1)
+        try:
+            launch_xshell(_config)
+        except Exception as e:
+            logger.warning("启动 Xshell 失败: %s", e)
+            if attempt < 2:
+                time.sleep(3)
+            continue
 
-    client = BridgeClient(_config.ipc_dir, timeout=_config.default_timeout)
-    client.initialize()
-    if not wait_for_bridge(client):
-        raise BridgeNotReadyError("Bridge 恢复超时")
-    _client = client
-    logger.info("Bridge 已恢复")
+        client = BridgeClient(_config.ipc_dir, timeout=_config.default_timeout)
+        client.initialize()
+        if wait_for_bridge(client, timeout=30):
+            _client = client
+            logger.info("Bridge 已恢复 (尝试 %d 次)", attempt + 1)
+            return
+        logger.warning("等待 Bridge 超时 (尝试 %d/3)", attempt + 1)
+        if attempt < 2:
+            time.sleep(3)
+
+    raise BridgeNotReadyError(
+        "Bridge 自动恢复失败（3次尝试）。"
+        "请手动在 Xshell 中: 工具 → 脚本 → 运行 → xshell_bridge_v5.py"
+    )
 
 
 # ============================================================

@@ -301,9 +301,10 @@ def _handle_exec(req):
 
     _send_text(full_cmd + "\r")
 
-    # 轮询等待 marker（自适应间隔：前5秒每500ms，之后每1000ms）
+    # 轮询等待 marker（自适应间隔 + COM 故障退避）
     timed_out = True
     elapsed = 0
+    com_failures = 0
     while elapsed < timeout_ms:
         wait = 500 if elapsed < 5000 else 1000
         xsh.Session.Sleep(wait)
@@ -314,6 +315,14 @@ def _handle_exec(req):
         if marker in recent:
             timed_out = False
             break
+        # COM 连续失败 → 延长等待，避免在异常状态下频繁重试
+        if end_row == 0 and not recent:
+            com_failures += 1
+            if com_failures > 10:
+                xsh.Session.Sleep(2000)
+                elapsed += 2000
+        else:
+            com_failures = 0
 
     end_row = _safe_current_row()
     output = _safe_read_screen(start_row, end_row)
@@ -342,6 +351,7 @@ def _handle_send_raw(req):
     timed_out = True
     if wait_for:
         elapsed = 0
+        com_failures = 0
         while elapsed < timeout_ms:
             wait = 500 if elapsed < 5000 else 1000
             xsh.Session.Sleep(wait)
@@ -352,6 +362,13 @@ def _handle_send_raw(req):
             if wait_for in recent:
                 timed_out = False
                 break
+            if end_row == 0 and not recent:
+                com_failures += 1
+                if com_failures > 10:
+                    xsh.Session.Sleep(2000)
+                    elapsed += 2000
+            else:
+                com_failures = 0
     else:
         timed_out = False
 

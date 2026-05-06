@@ -6,6 +6,7 @@ from pathlib import Path
 class XshellConfig:
     xshell_path: str = r"D:\software\xshell8\Xshell.exe"
     bridge_script_path: str = ""
+    session_path: str = ""  # .xsh 会话文件，用于自动恢复时重建 SSH 连接
     ipc_dir: str = ""
     default_timeout: int = 30
     screen_cols: int = 200
@@ -28,6 +29,8 @@ def load_config() -> XshellConfig:
         cfg.xshell_path = v
     if v := os.getenv("XSH_BRIDGE_SCRIPT"):
         cfg.bridge_script_path = v
+    if v := os.getenv("XSH_XSHELL_SESSION"):
+        cfg.session_path = v
     if v := os.getenv("XSH_IPC_DIR"):
         cfg.ipc_dir = v
     if v := os.getenv("XSH_DEFAULT_TIMEOUT"):

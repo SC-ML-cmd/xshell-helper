@@ -29,8 +29,24 @@ def find_xshell(config: XshellConfig) -> str:
     return ""
 
 
+def _find_session(config: XshellConfig) -> str:
+    """查找 Xshell 会话文件"""
+    # 优先使用配置中的路径
+    if config.session_path and Path(config.session_path).exists():
+        return config.session_path
+
+    # 尝试从默认会话目录找最近使用的 .xsh 文件
+    sessions_dir = Path.home() / "Documents" / "NetSarang Computer" / "8" / "Xshell" / "Sessions"
+    if sessions_dir.is_dir():
+        xsh_files = sorted(sessions_dir.glob("*.xsh"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if xsh_files:
+            return str(xsh_files[0])
+
+    return ""
+
+
 def launch_xshell(config: XshellConfig) -> bool:
-    """启动 Xshell 并加载 Bridge 脚本"""
+    """启动 Xshell 并加载 Bridge 脚本，可选恢复会话"""
     xshell_exe = find_xshell(config)
     if not xshell_exe:
         raise FileNotFoundError("找不到 Xshell.exe，请设置 XSH_XSHELL_PATH 环境变量")
@@ -39,8 +55,12 @@ def launch_xshell(config: XshellConfig) -> bool:
     if not Path(bridge_script).exists():
         raise FileNotFoundError("找不到 Bridge 脚本: {}".format(bridge_script))
 
-    # 启动 Xshell，通过 -script 参数加载 Bridge
-    cmd = [xshell_exe, "-script", bridge_script]
+    # 启动 Xshell：前面放会话文件（自动连接 SSH），-script 加载 Bridge
+    cmd = [xshell_exe]
+    session = _find_session(config)
+    if session:
+        cmd.append(session)
+    cmd.extend(["-script", bridge_script])
     subprocess.Popen(cmd, cwd=str(Path(xshell_exe).parent))
 
     return True

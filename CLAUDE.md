@@ -81,8 +81,27 @@ LLM (Claude) ←→ MCP Server (server.py) ←→ Bridge Client (bridge_client.p
 - `XSH_XSHELL_PATH` — Xshell.exe 路径
 - `XSH_BRIDGE_SCRIPT` — Bridge 脚本路径（默认为 `bridge/xshell_bridge_v4.py`）
 - `XSH_IPC_DIR` — IPC 目录（默认为 `%TEMP%\xshell_mcp`）
+- `XSH_XSHELL_SESSION` — Xshell 会话文件路径（.xsh），用于自动恢复时重建 SSH 连接
 - `XSH_DEFAULT_TIMEOUT` — 命令超时秒数（默认 30）
 - `XSH_SCREEN_COLS` — 屏幕列宽（默认 200）
+
+### Bridge 自动恢复
+
+Server 通过心跳文件检测 Bridge 存活：
+- Bridge 每 2 秒更新 `.heartbeat.json`（纯文件 I/O，零 COM）
+- Server 每 500ms 检查一次，15 秒无心跳视为离线
+- 连续 2 次心跳丢失（约 30s）触发自动恢复
+- 恢复流程：启动 Xshell → 加载会话文件 → 自动 SSH 连接 → 运行 Bridge 脚本
+- 最多重试 3 次，每次等 3 秒
+
+会话文件查找顺序：
+1. 环境变量 `XSH_XSHELL_SESSION` 指定的路径
+2. `Documents\NetSarang Computer\8\Xshell\Sessions\` 下最近修改的 .xsh 文件
+
+### 已知问题
+
+Xshell 8.0.0021 的 CrashRpt.dll（1.4.0.2）存在 bug，崩溃点在该 DLL 内部。
+这是 Xshell 自身缺陷，无法从 bridge 侧修复。通过自动恢复机制绕过。
 
 ## 重要
 所有内部推理、思考过程必须使用中文
