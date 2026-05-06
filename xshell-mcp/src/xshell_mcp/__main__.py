@@ -2,12 +2,14 @@
 
 import logging
 import sys
+import time
 
 
 def main():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [xshell-mcp] %(message)s",
+        stream=sys.stderr,
     )
     logger = logging.getLogger("xshell_mcp")
 
@@ -15,12 +17,21 @@ def main():
 
     from .server import init_bridge, mcp
 
-    try:
-        init_bridge()
-    except Exception as e:
-        logger.warning("Bridge 初始化失败: %s", e)
-        logger.warning("将继续启动 MCP Server，但命令执行需要 Bridge 在线")
-        logger.warning("请手动在 Xshell 中运行 bridge/xshell_bridge.py 脚本")
+    bridge_ok = False
+    for attempt in range(3):
+        try:
+            init_bridge()
+            bridge_ok = True
+            logger.info("Bridge 初始化成功")
+            break
+        except Exception as e:
+            logger.warning("Bridge 初始化失败 (尝试 %d/3): %s", attempt + 1, e)
+            if attempt < 2:
+                time.sleep(2)
+
+    if not bridge_ok:
+        logger.error("Bridge 初始化多次失败，MCP 将以离线模式运行")
+        logger.error("请确认: 1) Xshell 已安装 2) 在 Xshell 中手动运行 bridge/xshell_bridge_v4.py")
 
     logger.info("MCP Server 就绪")
     mcp.run(transport="stdio")

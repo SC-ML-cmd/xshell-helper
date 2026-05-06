@@ -1,7 +1,9 @@
 """Xshell MCP Server — 让大模型通过 Xshell 执行命令"""
 
+import json
 import time
 import logging
+from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
@@ -21,13 +23,61 @@ mcp = FastMCP("xshell-mcp")
 
 _config = load_config()
 _client: BridgeClient | None = None
+_heartbeat_miss_count = 0
+MAX_HEARTBEAT_MISS = 3
+
+
+def _check_heartbeat() -> bool:
+    """检查 Bridge 心跳文件是否存活（30 秒内有更新视为在线）"""
+    hb_file = Path(_config.ipc_dir) / ".heartbeat.json"
+    try:
+        if not hb_file.exists():
+            return False
+        data = json.loads(hb_file.read_text(encoding="utf-8"))
+        age = time.time() - data.get("ts", 0)
+        return age < 30
+    except Exception:
+        return False
 
 
 def get_client() -> BridgeClient:
-    global _client
+    global _client, _heartbeat_miss_count
     if _client is None:
-        raise BridgeNotReadyError("Bridge 未初始化，请先启动 MCP Server")
+        raise BridgeNotReadyError(
+            "Bridge 未初始化。请在 Xshell 中手动运行 bridge/xshell_bridge_v4.py 脚本"
+        )
+
+    # 心跳检测，丢失过多时触发恢复
+    if not _check_heartbeat():
+        _heartbeat_miss_count += 1
+        if _heartbeat_miss_count >= MAX_HEARTBEAT_MISS:
+            logger.warning("Bridge 心跳丢失，尝试自动恢复...")
+            try:
+                _recover_bridge()
+                _heartbeat_miss_count = 0
+            except Exception as e:
+                raise BridgeNotReadyError("Bridge 离线且自动恢复失败: {}".format(e))
+    else:
+        _heartbeat_miss_count = 0
+
     return _client
+
+
+def _recover_bridge():
+    """尝试恢复 Bridge：重新启动 Xshell"""
+    global _client
+    logger.info("正在重启 Xshell...")
+    try:
+        launch_xshell(_config)
+    except Exception as e:
+        raise BridgeNotReadyError("无法启动 Xshell: {}".format(e))
+
+    client = BridgeClient(_config.ipc_dir, timeout=_config.default_timeout)
+    client.initialize()
+    if not wait_for_bridge(client):
+        raise BridgeNotReadyError("Bridge 恢复超时")
+    _client = client
+    logger.info("Bridge 已恢复")
 
 
 # ============================================================
@@ -40,7 +90,13 @@ def check_bridge() -> dict:
     try:
         client = get_client()
         ok = client.check_bridge()
-        return {"bridge_online": ok}
+        hb = _check_heartbeat()
+        return {
+            "bridge_online": ok and hb,
+            "bridge_responds": ok,
+            "heartbeat_alive": hb,
+            "heartbeat_miss_count": _heartbeat_miss_count,
+        }
     except Exception as e:
         return {"bridge_online": False, "error": str(e)}
 
@@ -157,7 +213,8 @@ def get_session_info() -> dict:
 # ============================================================
 
 def init_bridge() -> BridgeClient:
-    global _client
+    global _client, _heartbeat_miss_count
+    _heartbeat_miss_count = 0
 
     client = BridgeClient(_config.ipc_dir, timeout=_config.default_timeout)
     client.initialize()
