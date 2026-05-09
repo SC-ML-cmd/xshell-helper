@@ -9,7 +9,11 @@
       "mcp__xshell__get_session_info",
       "mcp__xshell__get_screen",
       "mcp__xshell__execute_command",
-      "mcp__filesystem__create_directory"
+      "mcp__filesystem__create_directory",
+      "Read(//c/Users/Administrator/AppData/Local/CrashRpt/UnsentCrashReports/NSC8_8/ab582897-286e-4ec5-9336-a4351fb5993c/**)",
+      "mcp__xshell__send_raw",
+      "Read(//c/Users/Administrator/AppData/Local/CrashRpt/UnsentCrashReports/NSC8_8/1eb46385-34e5-400d-9d48-57804f1f6729/**)",
+      "Read(//c/Users/Administrator/Documents/NetSarang Computer/**)"
     ]
   }
 }

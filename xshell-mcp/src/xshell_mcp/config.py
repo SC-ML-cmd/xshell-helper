@@ -5,17 +5,18 @@ from pathlib import Path
 @dataclass
 class XshellConfig:
     xshell_path: str = r"D:\software\xshell8\Xshell.exe"
-    bridge_script_path: str = ""
-    session_path: str = ""  # .xsh 会话文件，用于自动恢复时重建 SSH 连接
-    ipc_dir: str = ""
+    bridge_script_path: str = ""       # Bridge 脚本路径
+    session_path: str = ""             # .xsh 会话文件
+    ipc_dir: str = ""                  # IPC 文件目录
     default_timeout: int = 30
     screen_cols: int = 200
     marker_prefix: str = "__XSH_"
+    poll_interval_ms: int = 500
 
     def __post_init__(self):
         if not self.bridge_script_path:
             pkg_dir = Path(__file__).resolve().parent.parent.parent
-            self.bridge_script_path = str(pkg_dir / "bridge" / "xshell_bridge_v7.py")
+            self.bridge_script_path = str(pkg_dir / "bridge" / "xshell_bridge_v8.py")
         if not self.ipc_dir:
             import tempfile
             self.ipc_dir = str(Path(tempfile.gettempdir()) / "xshell_mcp")

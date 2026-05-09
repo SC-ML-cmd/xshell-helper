@@ -1,6 +1,5 @@
-"""启动 Xshell 并加载 Bridge 脚本"""
+"""启动 Xshell 并加载 Bridge v8 脚本"""
 
-import os
 import subprocess
 import time
 from pathlib import Path
@@ -10,12 +9,10 @@ from .bridge_client import BridgeClient
 
 
 def find_xshell(config: XshellConfig) -> str:
-    """查找 Xshell.exe 路径"""
     path = config.xshell_path
     if path and Path(path).exists():
         return path
 
-    # 常见安装路径
     candidates = [
         r"D:\software\xshell8\Xshell.exe",
         r"C:\Program Files\NetSarang\Xshell 8\Xshell.exe",
@@ -30,15 +27,15 @@ def find_xshell(config: XshellConfig) -> str:
 
 
 def _find_session(config: XshellConfig) -> str:
-    """查找 Xshell 会话文件（按优先级）"""
-    # 1) 优先使用配置中指定的路径
     if config.session_path and Path(config.session_path).exists():
         return config.session_path
 
-    # 2) 从 Xshell 最近日志中解析最后加载的会话
     applog_dir = Path.home() / "Documents" / "NetSarang Computer" / "8" / "Xshell" / "applog"
     if applog_dir.is_dir():
-        log_files = sorted(applog_dir.glob("XshellCore_*.log"), key=lambda f: f.stat().st_mtime, reverse=True)
+        log_files = sorted(
+            applog_dir.glob("XshellCore_*.log"),
+            key=lambda f: f.stat().st_mtime, reverse=True,
+        )
         for log in log_files[:3]:
             try:
                 content = log.read_text(encoding="utf-16-le", errors="ignore")
@@ -52,10 +49,12 @@ def _find_session(config: XshellConfig) -> str:
             except Exception:
                 pass
 
-    # 3) 回退：从会话目录找最近修改的 .xsh 文件
     sessions_dir = Path.home() / "Documents" / "NetSarang Computer" / "8" / "Xshell" / "Sessions"
     if sessions_dir.is_dir():
-        xsh_files = sorted(sessions_dir.glob("*.xsh"), key=lambda f: f.stat().st_mtime, reverse=True)
+        xsh_files = sorted(
+            sessions_dir.glob("*.xsh"),
+            key=lambda f: f.stat().st_mtime, reverse=True,
+        )
         if xsh_files:
             return str(xsh_files[0])
 
@@ -63,38 +62,37 @@ def _find_session(config: XshellConfig) -> str:
 
 
 def launch_xshell(config: XshellConfig) -> bool:
-    """启动 Xshell 并加载 Bridge 脚本，可选恢复会话"""
     xshell_exe = find_xshell(config)
     if not xshell_exe:
         raise FileNotFoundError("找不到 Xshell.exe，请设置 XSH_XSHELL_PATH 环境变量")
 
     bridge_script = config.bridge_script_path
     if not Path(bridge_script).exists():
-        raise FileNotFoundError("找不到 Bridge 脚本: {}".format(bridge_script))
+        raise FileNotFoundError(f"找不到 Bridge 脚本: {bridge_script}")
 
-    # 杀掉旧的 XshellCore 进程，避免新旧实例冲突
+    # 杀掉旧进程
     try:
-        subprocess.run(["taskkill", "/f", "/im", "XshellCore.exe"], capture_output=True, timeout=10)
+        subprocess.run(
+            ["taskkill", "/f", "/im", "XshellCore.exe"],
+            capture_output=True, timeout=10,
+        )
         time.sleep(1)
     except Exception:
         pass
 
-    # 启动 Xshell：前面放会话文件（自动连接 SSH），-script 加载 Bridge
     cmd = [xshell_exe]
     session = _find_session(config)
     if session:
         cmd.append(session)
     cmd.extend(["-script", bridge_script])
     subprocess.Popen(cmd, cwd=str(Path(xshell_exe).parent))
-
     return True
 
 
 def wait_for_bridge(client: BridgeClient, timeout: int = 20) -> bool:
-    """等待 Bridge 就绪"""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if client.check_bridge():
+        if client.check():
             return True
         time.sleep(0.5)
     return False
